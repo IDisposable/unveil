@@ -10,21 +10,24 @@
 
 ;(function($) {
 
-  $.fn.unveil = function(threshold, callback) {
+  $.fn.unveil = function(threshold, callback, throttle) {
 
     var $w = $(window),
         th = threshold || 0,
         retina = window.devicePixelRatio > 1,
-        attrib = retina? "data-src-retina" : "data-src",
+        attrib = retina ? "data-src-retina" : "data-src",
         images = this,
-        loaded;
+        tr = throttle || 100,
+        loaded,
+        timer,
+        wh,
+        eh;
 
     this.one("unveil", function() {
       var source = this.getAttribute(attrib);
       source = source || this.getAttribute("data-src");
       if (source) {
-        this.setAttribute("src", source);
-        if (typeof callback === "function") callback.call(this);
+        loadImg(source, this);
       }
     });
 
@@ -33,8 +36,12 @@
         var $e = $(this);
         if ($e.is(":hidden")) return;
 
+        if (!wh) {
+            wh = $w.height();
+        }
+
         var wt = $w.scrollTop(),
-            wb = wt + $w.height(),
+            wb = wt + wh,
             et = $e.offset().top,
             eb = et + $e.height();
 
@@ -45,13 +52,35 @@
       images = images.not(loaded);
     }
 
-    $w.scroll(unveil);
-    $w.resize(unveil);
+    function loadImg(source, el) {
+       $.get(source, function() {
+           if (this.tagName === "IMG") {
+               el.setAttribute("src", source);
+           } else {
+               el.style["backgroundImage"] = "url('" + source + "')";
+           }
+           if (typeof callback === "function") callback.call(el);
+        })
+    }
+    
+    function throttledUnveil() {
+        clearTimeout(timer);
+        timer = setTimeout(function () {
+            unveil();
+        }, tr);
+    }
+    
+    function onResize() {
+        wh = $w.height();
+        throttledUnveil();
+    }
+ 
+    $w.on('scroll.unveil', throttledUnveil);
+    $w.on('resize.unveil', onResize);
 
     unveil();
 
     return this;
-
   };
 
 })(window.jQuery || window.Zepto);
